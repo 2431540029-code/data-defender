@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DATA DEFENDER</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="game">
+
+<div id="globalHUD" class="hud hidden">
+    <div class="hud-group">
+        <div class="hud-item">
+            <span class="hud-label">Player</span>
+            <span id="playerNameLabel">Player</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Score</span>
+            <span id="scoreLabel">0</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Firewall</span>
+            <span id="firewallLabel">100%</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Time</span>
+            <span id="timerText">00:00</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Chapter</span>
+            <span id="chapterLabel">1</span>
+        </div>
+    </div>
+</div>
+
+<section id="loadingScreen" class="screen">
+    <h1 class="gameTitle">DATA DEFENDER</h1>
+    <p id="loadingText">Initializing Security System...</p>
+    <div class="loadingBar">
+        <div id="loadingProgress"></div>
+    </div>
+</section>
+
+<section id="menuScreen" class="screen hidden">
+    <div class="nameInputBox">
+        <label for="playerName">Enter Name</label>
+        <input id="playerName" type="text" placeholder="" maxlength="20">
+    </div>
+
+    <h2>SkyData Corporation</h2>
+    <h1 class="gameTitle">DATA DEFENDER</h1>
+    <p>Operation : Personal Data Protection</p>
+
+    <button id="leaderboardBtn" class="btn" type="button">🏆 Bảng Xếp Hạng</button>
+    <button id="startBtn" class="btn" type="button">▶ START MISSION</button>
+</section>
+
+<section id="storyScreen" class="screen hidden">
+    <div class="scene">
+        <div id="storyAvatarContainer">
+            <img id="storyAvatar" src="assets/characters/director.jpg" alt="Character">
+        </div>
+    </div>
+
+    <header id="gameHUD">
+        <div>
+            🛡 Firewall
+            <div class="bar">
+                <div id="firewallBar"></div>
+            </div>
+        </div>
+        <div>
+            ⭐ Score <span id="score">0</span>
+        </div>
+        <div>
+            📖 Chapter 1
+        </div>
+    </header>
+
+    <div id="storyContainer">
+        <div id="dialogBox">
+            <h2 id="speaker"></h2>
+            <p id="dialogText"></p>
+            <button id="nextBtn">Tiếp tục</button>
+        </div>
+    </div>
+</section>
+
+<section id="missionScreen" class="screen hidden">
+    <div class="missionCard">
+        <h1>🎯 MISSION</h1>
+        <h2>Operation Personal Data Protection</h2>
+        <p>
+            Một Hacker có biệt danh <b>BOSS X</b> đã xâm nhập vào trung tâm dữ liệu.
+            Bạn phải vượt qua bài kiểm tra kiến thức về Luật Bảo vệ dữ liệu cá nhân để kích hoạt Firewall.
+        </p>
+        <h3>Điều kiện chiến thắng</h3>
+        <ul>
+            <li>✔ Đạt ít nhất 80 điểm</li>
+            <li>✔ Firewall còn trên 50%</li>
+            <li>✔ Đánh bại Hacker PHANTOM</li>
+        </ul>
+        <button id="missionBtn">BẮT ĐẦU</button>
+    </div>
+</section>
+
+<section id="quizScreen" class="screen hidden">
+    <header id="quizHUD">
+        <div>
+            🛡 Firewall
+            <div class="bar">
+                <div id="hpFill"></div>
+            </div>
+        </div>
+        <div>
+            ⭐ <span id="scoreText">0</span>
+        </div>
+        <div>
+            ⏰ <span id="timerText">30</span>
+        </div>
+    </header>
+
+    <div class="quizBox">
+        <div id="resultPanel" class="hidden">
+            <h2 id="resultTitle"></h2>
+            <p id="resultExplain"></p>
+            <p id="resultReference"></p>
+            <button id="nextQuestionBtn">Câu tiếp theo</button>
+        </div>
+
+        <div id="quizInfo">
+            <span id="questionNumber">Question 1 / 60</span>
+        </div>
+        <h2 id="questionTitle">Question</h2>
+        <div id="answerBox">
+            <button class="answerBtn"></button>
+            <button class="answerBtn"></button>
+            <button class="answerBtn"></button>
+            <button class="answerBtn"></button>
+        </div>
+    </div>
+</section>
+
+<section id="bossScreen" class="screen hidden">
+    <div class="bossContainer">
+        <h1 id="bossName">👨‍💻 BOSS</h1>
+        <img id="bossImage" src="assets/characters/hacker.jpg" alt="Boss">
+        <div class="bossHPBar">
+            <div id="bossFill"></div>
+        </div>
+        <p id="bossDialog">Ta sẽ đánh cắp toàn bộ dữ liệu của SkyData!</p>
+        <button id="attackBtn">⚡ Kích hoạt Firewall</button>
+    </div>
+</section>
+
+<section id="bossBattle" class="screen hidden">
+    <div class="boss-battle-wrapper">
+        <header class="boss-header">
+            <h2>FINAL BATTLE</h2>
+            <h3 id="bossTitle">BOSS X</h3>
+        </header>
+
+        <div class="boss-top">
+            <div class="boss-image-wrap">
+                <img id="bossLargeImage" src="assets/characters/hacker.jpg" alt="Boss Large">
+            </div>
+
+            <div class="boss-stats">
+                <div class="stat-row">
+                    <label>Boss HP</label>
+                    <div class="bossHPBar large">
+                        <div id="bossFillLarge"></div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <label>Firewall</label>
+                    <div class="bar large">
+                        <div id="firewallLarge"></div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <label>Score</label>
+                    <div id="bossScore">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="boss-dialogue" id="bossBattleDialog">"Các ngươi không thể ngăn ta."</div>
+
+        <div class="boss-question-area">
+            <div id="bossQuestionTitle" class="boss-question">Question</div>
+            <div id="bossAnswerBox" class="answer-grid">
+                <button class="answerBtn bossAnswer"></button>
+                <button class="answerBtn bossAnswer"></button>
+                <button class="answerBtn bossAnswer"></button>
+                <button class="answerBtn bossAnswer"></button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="endScreen" class="screen hidden">
+    <div class="endingCard">
+        <h1>MISSION COMPLETE</h1>
+        <div class="endingTitle" id="endingText">Firewall Successfully Activated</div>
+
+        <div class="endingStats">
+            <div><strong>Điểm</strong><span id="endingScore">0</span></div>
+            <div><strong>Firewall</strong><span id="endingFirewall">0%</span></div>
+            <div><strong>Đúng</strong><span id="endingCorrect">0</span></div>
+            <div><strong>Boss</strong><span id="endingBoss">YES</span></div>
+        </div>
+
+        <div class="endingRank" id="endingRank">Rank S</div>
+        <div class="achievementBox" id="achievementBox"></div>
+
+        <div class="endingActions">
+            <button id="restartBtn">PLAY AGAIN</button>
+            <button id="downloadCertBtn" class="secondaryBtn">Download Certificate</button>
+            <button id="leaderboardOpen" class="hud-button">Leaderboard</button>
+        </div>
+        <div id="leaderboard"></div>
+    </div>
+</section>
+<section id="leaderboardScreen" class="screen hidden">
+    <div class="missionCard">
+        <h1>BẢNG XẾP HẠNG</h1>
+        <table id="leaderboardTable">
+            <thead>
+                <tr>
+                    <th>Hạng</th>
+                    <th>Người chơi</th>
+                    <th>Điểm</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+                </tbody>
+        </table>
+        <button id="backToMenuBtn">QUAY LẠI</button>
+    </div>
+</section>
+
+<div id="playerPopup" class="popup-overlay">
+    <div class="popup-card">
+        <h2>Nhập tên người chơi</h2>
+        <p>Hãy nhập tên để lưu kết quả và tiếp tục.</p>
+        <input id="playerPopupInput" type="text" placeholder="Tên của bạn" maxlength="20" />
+        <button id="playerPopupConfirm">Xác nhận</button>
+    </div>
+</div>
+
+<div id="leaderboardPopup" class="popup-overlay">
+    <div class="popup-card leaderboard-card">
+        <header class="popup-header">
+            <h2>TOP 10 LEADERBOARD</h2>
+            <button id="leaderboardClose" class="popup-close">×</button>
+        </header>
+        <div id="leaderboardBody" class="leaderboard-body"></div>
+    </div>
+</div>
+
+<div id="victoryPopup" class="popup-overlay">
+    <div class="popup-card">
+        <h2>VICTORY</h2>
+        <p id="victoryMessage">Bạn đã chiến thắng Data Defender!</p>
+        <div class="popup-stats">
+            <div><strong>Score</strong><span id="victoryScore">0</span></div>
+            <div><strong>Firewall</strong><span id="victoryFirewall">0%</span></div>
+            <div><strong>Time</strong><span id="victoryTime">00:00</span></div>
+            <div><strong>Chapter</strong><span id="victoryChapter">1</span></div>
+        </div>
+        <div class="popup-actions">
+            <button id="victoryLeaderboardBtn" class="secondaryBtn">Leaderboard</button>
+            <button id="victoryRestartBtn">Restart</button>
+        </div>
+    </div>
+</div>
+
+<div id="gameOverPopup" class="popup-overlay">
+    <div class="popup-card">
+        <h2>GAME OVER</h2>
+        <p id="gameOverMessage">Firewall đã bị phá vỡ.</p>
+        <div class="popup-actions">
+            <button id="gameOverLeaderboardBtn" class="secondaryBtn">Leaderboard</button>
+            <button id="gameOverRestartBtn">Restart</button>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<script src="story.js"></script>
+<script src="questions.js"></script>
+<script type="module" src="src/script.js"></script>
+</body>
+</html>

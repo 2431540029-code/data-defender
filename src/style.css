@@ -1,0 +1,107 @@
+/* =================================================== */
+/* CẤU HÌNH GIAO DIỆN CHUẨN ĐỂ KHÔNG BỊ VỠ KHUNG */
+/* =================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #020813;
+    color: #ffffff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden; /* Xóa bỏ hoàn toàn thanh cuộn đáng ghét bọc ngoài màn hình */
+}
+
+/* Khung màn hình chính bọc ngoài */
+.screen {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* =================================================== */
+/* ĐỊNH DẠNG BẢNG HỆ THỐNG / MISSION CARD CHUẨN GIỮA MÀN HÌNH */
+/* =================================================== */
+.missionCard {
+    background: rgba(6, 18, 36, 0.9) !important;
+    border: 2px solid #00ffcc !important;
+    box-shadow: 0 0 25px rgba(0, 255, 204, 0.4) !important;
+    padding: 35px !important;
+    border-radius: 12px !important;
+    max-width: 650px !important;
+    width: 90% !important;
+    backdrop-filter: blur(10px) !important;
+    
+    /* Căn giữa tuyệt đối trong hệ thống Flexbox */
+    margin: 0 !important; 
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+/* Tiêu đề chính MISSION */
+.missionCard h1 {
+    color: #ff3366 !important; 
+    font-family: 'Orbitron', sans-serif !important;
+    text-shadow: 0 0 10px rgba(255, 51, 102, 0.6) !important;
+    text-align: center !important;
+    margin-bottom: 15px !important;
+}
+
+/* Tiêu đề phụ */
+.missionCard h2 {
+    color: #00d9ff !important;
+    margin-bottom: 25px !important;
+    text-align: center !important;
+}
+
+/* Nội dung văn bản */
+.missionCard p {
+    text-align: justify !important;
+    line-height: 1.6 !important;
+    margin-bottom: 20px !important;
+    color: #e2e8f0 !important;
+    font-size: 16px !important;
+}
+
+/* Danh sách điều kiện */
+.missionCard ul {
+    margin-top: 15px !important;
+    margin-left: 25px !important;
+    line-height: 35px !important;
+    font-size: 18px !important;
+    text-align: left !important;
+}
+
+/* Căn giữa nút BẮT ĐẦU */
+#missionBtn {
+    margin: 25px auto 0 auto !important;
+    display: block !important;
+    width: 200px !important;
+    padding: 12px 0 !important;
+    background: #00ffcc !important;
+    border: none !important;
+    color: #020813 !important;
+    font-weight: bold !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.4) !important;
+    transition: all 0.3s ease !important;
+}
+
+#missionBtn:hover {
+    background: #ff3366 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 20px rgba(255, 51, 102, 0.6) !important;
+}
+
+/* Quản lý thanh cuộn bên trong nếu chữ quá dài */
+.quizBox, .missionCard, .endingCard, .boss-battle-wrapper {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
