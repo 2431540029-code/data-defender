@@ -1,8 +1,9 @@
-console.log("SRC SCRIPT");
-import { player, loadPlayer, savePlayer, showPlayerPopup, hidePlayerPopup } from "./player.js";
-import { startTimer, stopTimer, resetTimer, getCurrentTime } from "./timer.js";
-import { saveMatchData } from "./firebase.js";
-import { showLeaderboard, hideLeaderboard } from "./leaderboard.js";
+console.log("ROOT SCRIPT");
+import { player, loadPlayer, savePlayer, updatePlayer, showPlayerPopup, hidePlayerPopup } from "./src/player.js";
+import { startTimer, stopTimer, resetTimer, getCurrentTime } from "./src/timer.js";
+import { saveMatchData } from "./src/firebase.js";
+import { fetchTop10, showLeaderboard, hideLeaderboard, initLeaderboardControls } from "./leaderboard.js";
+
 // =========================
 // DATA DEFENDER GAME
 // =========================
@@ -11,7 +12,7 @@ class Game {
 
     constructor() {
         // =====================
-        // UI ELEMENTS
+        // UI
         // =====================
         this.ui = {
             loadingScreen: document.getElementById("loadingScreen"),
@@ -76,7 +77,6 @@ class Game {
             leaderboardPopup: document.getElementById("leaderboardPopup"),
             leaderboardBody: document.getElementById("leaderboardBody"),
             leaderboardClose: document.getElementById("leaderboardClose"),
-            leaderboardBtn: document.getElementById("leaderboardBtn"),
             victoryPopup: document.getElementById("victoryPopup"),
             victoryScore: document.getElementById("victoryScore"),
             victoryFirewall: document.getElementById("victoryFirewall"),
@@ -98,13 +98,8 @@ class Game {
             downloadCertBtn: document.getElementById("downloadCertBtn")
         };
 
-        if (this.ui.leaderboardBtn) {
-            this.ui.leaderboardBtn.onclick = () => {
-                showLeaderboard();
-            };
-        }
         // =====================
-        // GAME DATA INITIALIZATION
+        // GAME DATA
         // =====================
         this.data = {
             loading: 0,
@@ -120,13 +115,12 @@ class Game {
             totalQuestions: 0,
             correctAnswers: 0,
             chapterCompleteMode: false,
-            playerName: "Player",
-            time: "00:00"
+            playerName: "Player"
         };
 
         this.typeTimer = null;
 
-        // Audio Objects configuration
+        // Create Audio objects WITHOUT src to avoid immediate range requests
         this.sound = {
             bgm: new Audio(),
             click: new Audio(),
@@ -136,6 +130,45 @@ class Game {
             victory: new Audio()
         };
 
+        // Safer audio setup: set preload and catch unsupported/source errors
+        Object.values(this.sound).forEach(s => {
+            try {
+                if (!s) return;
+                s.preload = 'auto';
+                s.load && s.load();
+            } catch (e) {
+                console.warn('Audio init failed', e);
+            }
+        });
+
+        // Try to fetch audio files and set blob URLs to avoid range/content issues on some dev servers
+        const audioMap = {
+            bgm: 'assets/audio/bgm.mp3',
+            click: 'assets/audio/click.wav',
+            correct: 'assets/audio/correct.wav',
+            wrong: 'assets/audio/wrong.wav',
+            alarm: 'assets/audio/alarm.wav',
+            victory: 'assets/audio/victory.wav'
+        };
+
+        Object.entries(audioMap).forEach(([key, path]) => {
+            const a = this.sound[key];
+            if (!a) return;
+            fetch(path).then(r => {
+                if (!r.ok) throw new Error('fetch failed');
+                return r.blob();
+            }).then(b => {
+                try {
+                    const url = URL.createObjectURL(b);
+                    a.src = url;
+                } catch (e) {
+                    // ignore
+                }
+            }).catch(() => {
+                // fallback: keep original src
+            });
+        });
+
         this.sound.bgm.loop = true;
         this.sound.bgm.volume = 0.35;
         this.sound.click.volume = 0.7;
@@ -144,203 +177,127 @@ class Game {
         this.sound.alarm.volume = 0.8;
         this.sound.victory.volume = 0.9;
 
-        // Run systems
         this.init();
-        this.initEvents(); 
-    }
-
-    initEvents() {
-        // START GAME
-        if (this.ui.startBtn) {
-            this.ui.startBtn.onclick = () => {
-                this.playSound("click");
-                const menuName = this.ui.playerNameInput?.value.trim() || "";
-
-                if (menuName !== "") {
-                    this.data.playerName = menuName;
-                    this.startGame();
-                } else if (player.name) {
-                    this.data.playerName = player.name;
-                    this.startGame();
-                } else {
-                    showPlayerPopup();
-                }
-            };
-        }
-
-        // STORY NEXT BUTTON
-        if (this.ui.nextBtn) {
-            this.ui.nextBtn.onclick = () => {
-                this.playSound("click");
-                
-                // LẦN 1: Nếu chữ vẫn đang chạy mà người chơi bấm nút
-                if (this.isTyping) {
-                    if (this.typeTimer) {
-                        clearInterval(this.typeTimer); // Dừng hiệu ứng chạy từng chữ
-                        this.typeTimer = null;
-                    }
-                    this.ui.dialogText.innerHTML = this.currentFullText; // Bung hết toàn bộ chữ ra luôn
-                    this.isTyping = false; // Đổi trạng thái thành đã chạy xong
-                } 
-                // LẦN 2: Nếu chữ đã chạy xong hoàn toàn rồi mới bấm -> Chuyển câu thoại kế tiếp
-                else {
-                    this.nextStory();
-                }
-            };
-        }
-
-        // QUIZ BUTTONS
-        if (this.ui.answerButtons) {
-            this.ui.answerButtons.forEach((btn, index) => {
-                btn.onclick = () => {
-                    this.playSound("click");
-                    this.checkAnswer(index);
-                };
-            });
-        }
-
-        if (this.ui.nextQuestionBtn) {
-            this.ui.nextQuestionBtn.onclick = () => {
-                this.playSound("click");
-                this.nextQuestion();
-            };
-        }
-
-        // BOSS ATTACK
-        if (this.ui.attackBtn) {
-            this.ui.attackBtn.onclick = () => {
-                this.playSound("click");
-                this.attackBoss();
-            };
-        }
-
-        if (this.ui.bossAnswerButtons) {
-            this.ui.bossAnswerButtons.forEach((btn, index) => {
-                btn.onclick = () => {
-                    this.playSound("click");
-                    this.checkBossAnswer(index);
-                };
-            });
-        }
-
-        // LEADERBOARD
-        if (this.ui.leaderboardBtn) {
-            this.ui.leaderboardBtn.onclick = async () => {
-                await showLeaderboard(); // Gọi đúng hàm đã import
-            };
-        }
-
-        if (this.ui.leaderboardClose) {
-            this.ui.leaderboardClose.onclick = () => {
-                hideLeaderboard(); // Gọi đúng hàm đã import
-            };
-        }
-
-        // GAME OVER LEADERBOARD
-        if (this.ui.gameOverLeaderboardBtn) {
-            this.ui.gameOverLeaderboardBtn.onclick = async () => {
-                await showLeaderboard(); // Sửa từ displayLeaderboardPopup thành showLeaderboard
-            };
-        }
-
-        // VICTORY LEADERBOARD
-        if (this.ui.victoryLeaderboardBtn) {
-            this.ui.victoryLeaderboardBtn.onclick = async () => {
-                await showLeaderboard(); // Sửa từ displayLeaderboardPopup thành showLeaderboard
-            };
-        }
-
-        // GAME OVER RESTART
-        if (this.ui.gameOverRestartBtn) {
-            this.ui.gameOverRestartBtn.onclick = () => {
-                this.hideGameOverPopup();
-                this.resetGame();
-            };
-        }
-
-        if (this.ui.gameOverLeaderboardBtn) {
-            this.ui.gameOverLeaderboardBtn.onclick = async () => {
-                await showLeaderboard();
-            };
-        }
-
-        // VICTORY RESTART
-        if (this.ui.victoryRestartBtn) {
-            this.ui.victoryRestartBtn.onclick = () => {
-                this.hideVictoryPopup();
-                this.resetGame();
-            };
-        }
-
-        if (this.ui.victoryLeaderboardBtn) {
-            this.ui.victoryLeaderboardBtn.onclick = async () => {
-                await showLeaderboard();
-            };
-        }
-
-        // ENDING ACTIONS
-        if (this.ui.restartBtn) {
-            this.ui.restartBtn.onclick = () => {
-                this.resetGame();
-            };
-        }
-
-        if (this.ui.downloadCertBtn) {
-            this.ui.downloadCertBtn.onclick = () => {
-                this.downloadCertificate();
-            };
-        }
     }
 
     init() {
-        const savedPlayer = loadPlayer();
-        if (savedPlayer && savedPlayer.name) {
-            this.data.playerName = savedPlayer.name;
-        }
-
         this.loadingAnimation();
 
-        if (this.ui.missionBtn) {
-            this.ui.missionBtn.onclick = () => {
+        this.ui.startBtn.onclick = () => {
+            this.playSound("click");
+            if (!player.name) {
+                showPlayerPopup();
+            } else {
+                this.startGame();
+            }
+        };
+        this.ui.nextBtn.onclick = () => {
+            this.playSound("click");
+            this.nextStory();
+        };
+        this.ui.missionBtn.onclick = () => {
+            this.playSound("click");
+            this.startQuiz();
+        };
+
+        this.ui.attackBtn.onclick=()=>{
+            this.playSound("click");
+            this.attackBoss();
+
+        };
+
+        this.ui.answerButtons.forEach((btn, index) => {
+            btn.onclick = () => {
                 this.playSound("click");
-                this.startQuiz();
+                this.checkAnswer(index);
+            }
+        });
 
-                startTimer((formattedTime) => {
-                    this.data.time = formattedTime;
-                    if (this.ui.timerLabel) {
-                        this.ui.timerLabel.innerText = formattedTime;
-                    }
-                });
+        this.ui.nextQuestionBtn.onclick = () => {
+            this.playSound("click");
+            this.nextQuestion();
+        };
+
+        this.ui.restartBtn.onclick = () => {
+            this.playSound("click");
+            this.resetGame();
+        };
+
+        this.ui.downloadCertBtn.onclick = () => {
+            this.downloadCertificate();
+        };
+
+        this.ui.victoryLeaderboardBtn.onclick = async () => {
+            await renderLeaderboard();
+            displayLeaderboardPopup();
+        };
+
+        this.ui.victoryRestartBtn.onclick = () => {
+            this.playSound("click");
+            this.hideVictoryPopup();
+            this.resetGame();
+        };
+
+        this.ui.gameOverLeaderboardBtn.onclick = async () => {
+            await renderLeaderboard();
+            displayLeaderboardPopup();
+        };
+
+        this.ui.gameOverRestartBtn.onclick = () => {
+            this.playSound("click");
+            this.hideGameOverPopup();
+            this.resetGame();
+        };
+
+        // boss answer handlers
+        this.ui.bossAnswerButtons.forEach((btn, i) => {
+            btn.onclick = () => {
+                this.playSound("click");
+                this.checkBossAnswer(i);
             };
-        }
+        });
 
-        // Popup Event from player.js
         window.addEventListener("playerConfirmed", (event) => {
             const confirmedPlayer = event.detail && event.detail.player;
-            const playerName = confirmedPlayer && confirmedPlayer.name ? confirmedPlayer.name : "Player";
-            this.data.playerName = playerName;
+            if (confirmedPlayer && confirmedPlayer.name) {
+                updatePlayer({ name: confirmedPlayer.name });
+            }
             this.updateHUD();
-
-            const loginScreen = document.getElementById("loginScreen");
-            if (loginScreen) loginScreen.style.display = "none";
-
             this.startGame();
         });
 
         this.loadSavedPlayer();
+        initLeaderboardControls();
+        this.bindLegacyStartButton();
+    }
+
+    // Extra: bind old login screen start button if present
+    bindLegacyStartButton() {
+        const startGameBtn = document.getElementById("startGame");
+        if (!startGameBtn) return;
+        startGameBtn.onclick = () => {
+            const nameInput = document.getElementById("loginPlayerName");
+            const entered = nameInput && nameInput.value.trim();
+            if (entered) {
+                updatePlayer({ name: entered });
+                this.updateHUD();
+                document.getElementById("loginScreen").style.display = "none";
+                this.startGame();
+            } else {
+                showPlayerPopup();
+            }
+        };
     }
 
     playSound(name) {
         const sound = this.sound[name];
         if (!sound) return;
         sound.currentTime = 0;
-        sound.play().catch(err => console.log("Bỏ qua lỗi audio:", err));
+        sound.play().catch(() => {});
     }
 
     startBGM() {
-        if (this.sound.bgm) {
-            this.sound.bgm.play().catch(err => console.log("Bỏ qua lỗi BGM:", err));
-        }
+        this.sound.bgm.play().catch(() => {});
     }
 
     stopBGM() {
@@ -348,24 +305,31 @@ class Game {
         this.sound.bgm.currentTime = 0;
     }
 
+    //  Hàm gộp cập nhật HUD 
     updateHUD() {
-        if (this.ui.playerNameLabel) this.ui.playerNameLabel.innerHTML = this.data.playerName || "Player";
-        if (this.ui.scoreLabel) this.ui.scoreLabel.innerHTML = this.data.score;
-        if (this.ui.score) this.ui.score.innerHTML = this.data.score;
-        if (this.ui.scoreText) this.ui.scoreText.innerHTML = this.data.score;
-        if (this.ui.firewallLabel) this.ui.firewallLabel.innerHTML = `${this.data.firewall}%`;
-        if (this.ui.chapterLabel) this.ui.chapterLabel.innerHTML = this.data.chapterIndex + 1;
-        if (this.ui.timerLabel) this.ui.timerLabel.innerHTML = getCurrentTime();
-        if (this.ui.firewall) this.ui.firewall.style.width = this.data.firewall + "%";
-        if (this.ui.hpFill) this.ui.hpFill.style.width = this.data.firewall + "%";
+        this.ui.playerNameLabel.innerHTML = player.name || "Player";
+        this.ui.scoreLabel.innerHTML = this.data.score;
+        this.ui.score.innerHTML = this.data.score;
+        this.ui.scoreText.innerHTML = this.data.score;
+        this.ui.firewallLabel.innerHTML = `${this.data.firewall}%`;
+        this.ui.chapterLabel.innerHTML = this.data.chapterIndex + 1;
+        this.ui.timerLabel.innerHTML = getCurrentTime();
+        this.ui.firewall.style.width = this.data.firewall + "%";
+        this.ui.hpFill.style.width = this.data.firewall + "%";
     }
 
     loadSavedPlayer() {
         const saved = loadPlayer();
         if (saved && saved.name) {
-            this.data.playerName = saved.name;
-            if (this.ui.playerNameInput) this.ui.playerNameInput.value = saved.name;
-            if (this.ui.loginPlayerName) this.ui.loginPlayerName.value = saved.name;
+            updatePlayer({
+                name: saved.name,
+                score: saved.score || 0,
+                chapter: saved.chapter || 1,
+                firewall: saved.firewall || 100,
+                time: saved.time || "00:00"
+            });
+            this.ui.playerNameInput.value = saved.name;
+            this.ui.loginPlayerName.value = saved.name;
         }
         this.updateHUD();
     }
@@ -396,7 +360,7 @@ class Game {
 
     async saveMatchResult() {
         const payload = {
-            name: this.data.playerName || "Player",
+            name: player.name || this.data.playerName || "Player",
             score: this.data.score,
             chapter: this.data.chapterIndex + 1,
             firewall: Math.max(this.data.firewall, 0),
@@ -404,16 +368,20 @@ class Game {
         };
         try {
             await saveMatchData(payload);
-            console.log("🔥 Lưu Firebase thành công!", payload);
         } catch (error) {
             console.warn("Unable to save match result", error);
         }
+        updatePlayer({
+            name: payload.name,
+            score: payload.score,
+            chapter: payload.chapter,
+            firewall: payload.firewall,
+            time: payload.time
+        });
     }
 
     checkAnswer(index) {
         const q = this.data.currentQuestions[this.data.questionIndex];
-        if (!q) return;
-        
         this.ui.resultPanel.classList.remove("hidden");
 
         if (index === q.correct) {
@@ -425,36 +393,39 @@ class Game {
         } else {
             this.playSound("wrong");
             this.ui.resultTitle.innerHTML = "❌ Chưa chính xác";
-            this.data.firewall -= 20;
-            
-            this.updateHUD();
-            if (this.data.firewall <= 0) {
-                this.loseGame();
-                return;
-            }
+            this.data.firewall = Math.max(this.data.firewall - 10, 0);
         }
 
+        // Thay đổi màu sắc nút khi bấm (Đúng hiện Xanh, Chọn sai hiện Đỏ)
         this.ui.answerButtons.forEach((btn, i) => {
             if (i === q.correct) {
-                btn.style.background = "#27AE60";
+                btn.style.background = "#27AE60"; // Màu xanh mượt
             }
             if (index === i && index !== q.correct) {
-                btn.style.background = "#E74C3C";
+                btn.style.background = "#E74C3C"; // Màu đỏ rực
             }
             btn.disabled = true;
         });
 
+        //   Hiển thị đáp án đúng kèm giải thích trực quan cho Giảng viên xem
         const correctAnswer = q.answers[q.correct];
         this.ui.resultExplain.innerHTML = `<strong>Đáp án đúng:</strong> ${correctAnswer}<br><br>${q.explanation}`;
+        
         this.ui.resultReference.innerHTML = q.reference;
 
         this.updateHUD();
+
+        if (this.data.firewall <= 0) {
+            this.loseGame();
+            return;
+        }
     }
 
     nextQuestion() {
         this.data.questionIndex++;
         this.ui.resultPanel.classList.add("hidden");
 
+        //  CẢI TIẾN 5: Reset lại màu nền và trạng thái disabled của các nút cho câu mới
         this.ui.answerButtons.forEach(btn => {
             btn.disabled = false;
             btn.style.background = "";
@@ -465,7 +436,7 @@ class Game {
             this.data.chapterIndex++;
             this.data.storyIndex = 0;
 
-            if (typeof storyChapters !== "undefined" && this.data.chapterIndex < storyChapters.length) {
+            if (this.data.chapterIndex < storyChapters.length) {
                 this.data.chapterCompleteMode = true;
                 this.data.firewall = Math.min(this.data.firewall + 20, 100);
                 this.updateHUD();
@@ -481,21 +452,24 @@ class Game {
     }
 
     showMissionComplete() {
-        if (typeof storyChapters === "undefined") return;
         const chapter = storyChapters[this.data.chapterIndex - 1];
         this.updateStoryBackground(chapter.background);
         this.ui.speaker.innerHTML = "MISSION COMPLETE";
         this.ui.storyAvatar.src = chapter.avatars[Object.keys(chapter.avatars)[0]].src;
         this.ui.storyAvatar.classList.toggle("glow", false);
         this.ui.nextBtn.innerText = "Continue";
-       this.typeWriter("Firewall +20\n\nTiếp tục để chuyển sang chương tiếp theo.")
+        this.typeWriter("Firewall +20\n\nTiếp tục để chuyển sang chương tiếp theo.")
         this.showScreen(this.ui.storyScreen);
+    }
+
+    startBoss() {
+        this.showScreen(this.ui.bossBattleSection);
     }
 
     startBossBattle() {
         this.data.bossQuestionIndex = 0;
         this.data.bossHP = 100;
-        if (typeof bossQuestions !== "undefined") this.data.bossQuestions = bossQuestions;
+        this.data.bossQuestions = bossQuestions;
         this.data.firewall = 100;
         this.ui.bossTitle.innerHTML = "BOSS X";
         this.ui.bossBattleDialog.innerHTML = "⚠ WARNING<br>Firewall đang được kích hoạt...<br>One hacker cực mạnh xuất hiện!";
@@ -509,9 +483,9 @@ class Game {
     }
 
     updateBossHUD() {
-        if (this.ui.bossFillLarge) this.ui.bossFillLarge.style.width = this.data.bossHP + "%";
-        if (this.ui.firewallLarge) this.ui.firewallLarge.style.width = this.data.firewall + "%";
-        if (this.ui.bossScore) this.ui.bossScore.innerHTML = this.data.score;
+        this.ui.bossFillLarge.style.width = this.data.bossHP + "%";
+        this.ui.firewallLarge.style.width = this.data.firewall + "%";
+        this.ui.bossScore.innerHTML = this.data.score;
     }
 
     showBossQuestion() {
@@ -579,8 +553,12 @@ class Game {
     }
 
     attackBoss() {
-        this.data.bossHP = Math.max(this.data.bossHP - 20, 0);
-        if (this.ui.bossFill) this.ui.bossFill.style.width = this.data.bossHP + "%";
+        this.data.bossHP -= 20;
+        if (this.data.bossHP < 0) {
+            this.data.bossHP = 0;
+        }
+
+        this.ui.bossFill.style.width = this.data.bossHP + "%";
 
         const dialog = [
             "🔥 Firewall đang tấn công...",
@@ -590,12 +568,11 @@ class Game {
         ];
 
         this.ui.bossDialog.innerHTML = dialog[Math.floor(Math.random() * dialog.length)];
-        if (this.ui.bossImage) {
-            this.ui.bossImage.classList.add("shake");
-            setTimeout(() => {
-                this.ui.bossImage.classList.remove("shake");
-            }, 400);
-        }
+        this.ui.bossImage.classList.add("shake");
+
+        setTimeout(() => {
+            this.ui.bossImage.classList.remove("shake");
+        }, 400);
 
         if (this.data.bossHP <= 0) {
             this.winGame();
@@ -613,13 +590,14 @@ class Game {
 
         const timer = setInterval(() => {
             this.data.loading++;
-            if (this.ui.loadingBar) this.ui.loadingBar.style.width = this.data.loading + "%";
+            this.ui.loadingBar.style.width = this.data.loading + "%";
 
+            //   Sửa lỗi undefined tại mốc 100% bằng cách giới hạn index tối đa
             const index = Math.min(
                 Math.floor(this.data.loading / 20),
                 loadingMessage.length - 1
             );
-            if (this.ui.loadingText) this.ui.loadingText.innerHTML = loadingMessage[index];
+            this.ui.loadingText.innerHTML = loadingMessage[index];
 
             if (this.data.loading >= 100) {
                 clearInterval(timer);
@@ -630,7 +608,6 @@ class Game {
     }
 
     showScreen(screen) {
-        if (!screen) return;
         const screens = [
             this.ui.loadingScreen,
             this.ui.menuScreen,
@@ -643,7 +620,7 @@ class Game {
         ];
 
         screens.forEach(s => {
-            if (s) s.classList.add("hidden");
+            s.classList.add("hidden");
         });
 
         screen.classList.remove("hidden");
@@ -656,10 +633,10 @@ class Game {
         this.data.correctAnswers = 0;
         this.data.firewall = 100;
         this.data.score = 0;
-        if (this.ui.globalHUD) this.ui.globalHUD.classList.remove("hidden");
+        this.ui.globalHUD.classList.remove("hidden");
         resetTimer();
         startTimer((time) => {
-            if (this.ui.timerLabel) this.ui.timerLabel.innerHTML = time;
+            this.ui.timerLabel.innerHTML = time;
         });
         this.updateHUD();
         this.startBGM();
@@ -667,113 +644,145 @@ class Game {
         this.showStory();
     }
 
-    showStory() {
-        if (typeof storyChapters === "undefined") return;
+    showStory(){
+
         const chapter = storyChapters[this.data.chapterIndex];
-        if (!chapter) return;
         const current = chapter.scenes[this.data.storyIndex];
-        if (!current) return;
 
         this.updateStoryBackground(chapter.background);
         this.ui.speaker.innerHTML = current.speaker;
         this.updateCharacterFocus(current.speaker, chapter.avatars);
         this.ui.nextBtn.innerText = "Tiếp tục";
         this.typeWriter(current.text);
-    }
 
+    }
     updateStoryBackground(background) {
-        if (this.ui.storyScreen) {
-            this.ui.storyScreen.style.backgroundImage = `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.7)), url('${background}')`;
-        }
+        this.ui.storyScreen.style.backgroundImage =
+            `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.7)), url('${background}')`;
     }
-
     updateCharacterFocus(speaker, chapterAvatars) {
         const speakerMap = {
-            "Giám đốc": { src: "assets/characters/director.jpg", glow: false },
-            "ARES AI": { src: "assets/characters/ai.jpg", glow: false },
-            "⚠ HỆ THỐNG": { src: "assets/characters/ai.jpg", glow: false },
-            "BOSS X": { src: "assets/characters/hacker.jpg", glow: true },
-            "Bạn": { src: "assets/characters/player.avif", glow: false },
-            "Trưởng phòng": { src: "assets/characters/director.jpg", glow: false },
-            "Chuyên gia": { src: "assets/characters/player.avif", glow: false }
+            "Giám đốc": {
+                src: "assets/characters/director.jpg",
+                glow: false
+            },
+            "ARES AI": {
+                src: "assets/characters/ai.jpg",
+                glow: false
+            },
+            "⚠ HỆ THỐNG": {
+                src: "assets/characters/ai.jpg",
+                glow: false
+            },
+            "BOSS X": {
+                src: "assets/characters/hacker.jpg",
+                glow: true
+            },
+            "Bạn": {
+                src: "assets/characters/player.avif",
+                glow: false
+            },
+            "Trưởng phòng": {
+                src: "assets/characters/director.jpg",
+                glow: false
+            },
+            "Chuyên gia": {
+                src: "assets/characters/player.avif",
+                glow: false
+            }
         };
 
         const chapterMap = chapterAvatars || {};
         const data = chapterMap[speaker] || speakerMap[speaker] || speakerMap["Giám đốc"];
 
-        if (this.ui.storyAvatar) {
-            this.ui.storyAvatar.src = data.src;
-            this.ui.storyAvatar.classList.toggle("glow", data.glow);
-        }
+        this.ui.storyAvatar.src = data.src;
+        this.ui.storyAvatar.classList.toggle("glow", data.glow);
     }
 
     typeWriter(text) {
-        if (this.typeTimer) {
-            clearInterval(this.typeTimer);
-        }
 
-        this.currentFullText = text; // Lưu lại toàn bộ nội dung văn bản gốc để bung ra khi cần
-        this.ui.dialogText.innerHTML = "";
-        this.isTyping = true; // Bật cờ báo hiệu chữ đang chạy
-        let i = 0;
-
-        this.typeTimer = setInterval(() => {
-            if (i < text.length) {
-                this.ui.dialogText.innerHTML += text.charAt(i);
-                i++;
-            } else {
-                clearInterval(this.typeTimer);
-                this.typeTimer = null;
-                this.isTyping = false; // Chữ chạy xong hết tự nhiên thì tắt cờ đi
-            }
-        }, 25);
+    // Dừng hiệu ứng cũ nếu còn chạy
+    if (this.typeTimer) {
+        clearInterval(this.typeTimer);
     }
 
-    nextStory() {
-        if (this.typeTimer) {
+    this.ui.dialogText.innerHTML = "";
+
+    let i = 0;
+
+    this.typeTimer = setInterval(() => {
+
+        if (i < text.length) {
+            this.ui.dialogText.innerHTML += text.charAt(i);
+            i++;
+        } else {
             clearInterval(this.typeTimer);
             this.typeTimer = null;
         }
 
-        if (this.data.chapterCompleteMode) {
-            this.data.chapterCompleteMode = false;
-            this.ui.nextBtn.innerText = "Tiếp tục";
-            this.data.storyIndex = 0;
-            this.showStory();
-            return;
-        }
+    }, 25);
 
-        this.data.storyIndex++;
-        if (typeof storyChapters === "undefined") return;
-        const chapter = storyChapters[this.data.chapterIndex];
+}
 
-        if (this.data.storyIndex >= chapter.scenes.length) {
-            this.startQuiz();
-            return;
-        }
+    nextStory() {
 
-        this.showStory();
+    // Nếu chữ đang chạy thì dừng
+    if (this.typeTimer) {
+        clearInterval(this.typeTimer);
+        this.typeTimer = null;
     }
 
+    if (this.data.chapterCompleteMode) {
+        this.data.chapterCompleteMode = false;
+        this.ui.nextBtn.innerText = "Tiếp tục";
+        this.data.storyIndex = 0;
+        this.showStory();
+        return;
+    }
+
+    this.data.storyIndex++;
+    const chapter = storyChapters[this.data.chapterIndex];
+
+    if (this.data.storyIndex >= chapter.scenes.length) {
+        this.startQuiz();
+        return;
+    }
+
+    this.showStory();
+
+}
+
+    //   Reset lại toàn bộ thông số dữ liệu khi người chơi bắt đầu Quiz (Phòng trường hợp chơi lại)
     startQuiz() {
         this.data.questionIndex = 0;
         this.data.correctAnswers = 0;
+        this.data.playerName = player.name || this.ui.playerNameInput.value.trim() || "Player";
 
-        if (typeof chapter1Questions !== "undefined") {
-            switch (this.data.chapterIndex + 1) {
-                case 1: this.data.currentQuestions = chapter1Questions; break;
-                case 2: this.data.currentQuestions = chapter2Questions; break;
-                case 3: this.data.currentQuestions = chapter3Questions; break;
-                case 4: this.data.currentQuestions = chapter4Questions; break;
-                case 5: this.data.currentQuestions = chapter5Questions; break;
-                default: this.data.currentQuestions = [];
-            }
+        switch (this.data.chapterIndex + 1) {
+            case 1:
+                this.data.currentQuestions = chapter1Questions;
+                break;
+            case 2:
+                this.data.currentQuestions = chapter2Questions;
+                break;
+            case 3:
+                this.data.currentQuestions = chapter3Questions;
+                break;
+            case 4:
+                this.data.currentQuestions = chapter4Questions;
+                break;
+            case 5:
+                this.data.currentQuestions = chapter5Questions;
+                break;
+            default:
+                this.data.currentQuestions = [];
         }
 
         this.data.totalQuestions = this.data.currentQuestions.length;
         this.data.score = 0;
         this.data.firewall = 100;
         this.updateHUD();
+        this.ui.playerNameInput.value = this.data.playerName;
         this.showScreen(this.ui.quizScreen);
         this.showQuestion();
     }
@@ -781,17 +790,18 @@ class Game {
     showQuestion() {
         const currentSet = this.data.currentQuestions;
         const q = currentSet[this.data.questionIndex];
-        if (!q) return;
 
-        this.ui.questionNumber.innerHTML = `Câu ${this.data.questionIndex + 1} / ${currentSet.length}`;
+        this.ui.questionNumber.innerHTML =
+            `Câu ${this.data.questionIndex + 1} / ${currentSet.length}`;
+
         this.ui.questionTitle.innerHTML = q.question;
 
+        //  Thêm tiền tố nhãn A, B, C, D vào trước nội dung đáp án (Yêu cầu nâng cấp số 1)
         const labels = ["A", "B", "C", "D"];
         this.ui.answerButtons.forEach((btn, index) => {
             btn.innerHTML = `${labels[index]}. ${q.answers[index]}`;
         });
     }
-
     async winGame() {
         this.stopBGM();
         stopTimer();
@@ -800,7 +810,7 @@ class Game {
         this.showScreen(this.ui.endScreen);
         this.showVictoryPopup();
         this.playSound("victory");
-        this.showEnding(true);
+        this.showEnding();
     }
 
     async loseGame() {
@@ -845,8 +855,7 @@ class Game {
 
     downloadCertificate() {
         const name = this.data.playerName;
-        const rankMatch = this.ui.endingRank.innerHTML.match(/Rank\s([A-Z])/);
-        const rank = rankMatch ? rankMatch[1] : "D";
+        const rank = this.ui.endingRank.innerHTML.match(/Rank\s([A-Z])/)[1];
         const cert = `DATA DEFENDER CERTIFICATE\n\nThis certifies that\n${name}\nsuccessfully completed\nDATA DEFENDER\nwith Rank ${rank}`;
         const blob = new Blob([cert], { type: "text/plain;charset=utf-8" });
         const link = document.createElement("a");
@@ -869,18 +878,17 @@ class Game {
         this.data.totalQuestions = 0;
         this.data.correctAnswers = 0;
         this.data.chapterCompleteMode = false;
-        
+        this.data.playerName = player.name || this.ui.playerNameInput.value.trim() || "Player";
         this.ui.resultPanel.classList.add("hidden");
         this.hideVictoryPopup();
         this.hideGameOverPopup();
         hideLeaderboard();
         this.ui.globalHUD.classList.add("hidden");
         resetTimer();
-        if (this.ui.timerLabel) this.ui.timerLabel.innerHTML = "00:00";
+        this.ui.timerLabel.innerHTML = "00:00";
         this.updateHUD();
         this.showScreen(this.ui.menuScreen);
     }
 }
 
-// Khởi tạo Game object chạy hệ thống toàn cục
 const game = new Game();
